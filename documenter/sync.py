@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 import tempfile
 from pathlib import Path
 
@@ -35,7 +36,8 @@ def pull(storage, db_path: str) -> str:
         # Uploading over an index we failed to read could erase someone else's work,
         # so any failure along the way disables pushing for this run.
         local_state.update(sync_ready=False)
-        return f"Не удалось связаться с Google Drive ({error}). Работаем с локальной копией, изменения в Drive не уедут."
+        print(f"sync.pull: {error}", file=sys.stderr)
+        return "Не удалось связаться с Google Диском. Работаем с локальной копией, изменения не уедут."
 
 
 def push(conn: sqlite3.Connection, storage) -> str:
@@ -58,7 +60,8 @@ def push(conn: sqlite3.Connection, storage) -> str:
         local_state.update(index_key=key, index_version=storage.version(key))
         return warning
     except Exception as error:
-        return f"Не удалось обновить базу в Google Drive ({error}). Изменения пока только на этом компьютере."
+        print(f"sync.push: {error}", file=sys.stderr)
+        return "Не удалось сохранить изменения в Google Диске. Пока они только на этом компьютере."
 
 
 def enable_after_login(storage) -> str:
@@ -68,7 +71,8 @@ def enable_after_login(storage) -> str:
     try:
         key = storage.find_by_name(INDEX_FILENAME)
     except Exception as error:
-        return f"Google Drive недоступен ({error}). Изменения останутся на этом компьютере."
+        print(f"sync.enable_after_login: {error}", file=sys.stderr)
+        return "Google Диск недоступен. Изменения останутся на этом компьютере."
     if key is not None:
         return "В Drive уже есть база документов. Перезапустите приложение, чтобы загрузить её."
     local_state.update(sync_ready=True, index_key=None, index_version=None)
@@ -97,4 +101,5 @@ def refresh(conn: sqlite3.Connection, storage) -> str:
         local_state.update(index_version=remote_version)
         return ""
     except Exception as error:
-        return f"Не удалось проверить изменения в Google Drive ({error})."
+        print(f"sync.refresh: {error}", file=sys.stderr)
+        return "Не удалось проверить изменения в Google Диске."

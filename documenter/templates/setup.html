@@ -19,6 +19,7 @@
     <p class="error">{{ error }}</p>
     {% endif %}
     <form method="post" action="/setup">
+      <input type="hidden" name="token" value="{{ token }}">
       <label>Приглашение
         <textarea name="blob" rows="5" required></textarea>
       </label>

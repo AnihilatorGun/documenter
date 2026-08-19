@@ -16,7 +16,7 @@ class Settings:
     google_client_secret: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""))
     owner_email: str = field(default_factory=lambda: os.getenv("OWNER_EMAIL", "").lower())
     allowed_emails: list[str] = field(default_factory=lambda: _emails(os.getenv("ALLOWED_EMAILS", "")))
-    session_secret: str = field(default_factory=lambda: os.getenv("SESSION_SECRET", "dev-secret"))
+    session_secret: str = field(default_factory=lambda: os.getenv("SESSION_SECRET", ""))
     storage: str = field(default_factory=lambda: os.getenv("STORAGE", "local"))
     drive_folder_name: str = field(default_factory=lambda: os.getenv("DRIVE_FOLDER_NAME", "Documenter"))
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "data/documenter.db"))

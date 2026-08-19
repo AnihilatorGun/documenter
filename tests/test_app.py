@@ -81,10 +81,23 @@ def test_setup_page_is_reachable_without_logging_in(client):
     assert client.get("/setup").status_code == 200
 
 
+def setup_token(client):
+    page = client.get("/setup").text
+    return page.split('name="token" value="')[1].split('"')[0]
+
+
 def test_setup_rejects_nonsense_with_a_message(client):
-    response = client.post("/setup", data={"blob": "не приглашение", "key": "не ключ"})
+    response = client.post(
+        "/setup",
+        data={"blob": "не приглашение", "key": "не ключ", "token": setup_token(client)},
+    )
     assert response.status_code == 200
-    assert "error" in response.text
+    assert 'class="error"' in response.text
+
+
+def test_setup_refuses_a_form_that_did_not_come_from_its_own_page(client):
+    response = client.post("/setup", data={"blob": "что угодно", "key": "что угодно"})
+    assert "Страница устарела" in response.text
 
 
 def test_invite_page_needs_a_login(client):

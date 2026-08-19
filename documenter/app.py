@@ -1,3 +1,4 @@
+import re
 import secrets
 import time
 from datetime import date
@@ -52,6 +53,12 @@ if settings.storage == "drive" and local_state.load().get("drive_refresh_token")
 conn = db.connect(settings.db_path)
 db.init_db(conn)
 
+if not settings.session_secret:
+    # Значение по умолчанию в открытом коде позволило бы кому угодно подделать сессию,
+    # поэтому недостающий секрет генерируется и остаётся на этом компьютере.
+    settings.session_secret = local_state.load().get("session_secret") or secrets.token_urlsafe(32)
+    local_state.update(session_secret=settings.session_secret)
+
 app = FastAPI()
 app.add_middleware(RequireLoginMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
@@ -60,6 +67,7 @@ templates.env.globals["notice"] = lambda: notice["text"]
 templates.env.globals["owner_email"] = settings.owner_email
 
 
+SETUP_TOKEN = secrets.token_urlsafe(16)
 SYNC_FREE_PREFIXES = ("/static", "/files", "/auth", "/login", "/setup", "/invite")
 INDEX_CHECK_INTERVAL = 15.0
 _last_index_check = {"at": 0.0}
@@ -139,16 +147,26 @@ def login_page(request: Request, error: str = ""):
 
 @app.get("/setup")
 def setup_page(request: Request):
-    return templates.TemplateResponse(request, "setup.html", {"error": "", "done": False})
+    return templates.TemplateResponse(
+        request, "setup.html", {"error": "", "done": False, "token": SETUP_TOKEN}
+    )
 
 
 @app.post("/setup")
-def apply_invite(request: Request, blob: str = Form(""), key: str = Form("")):
+def apply_invite(request: Request, blob: str = Form(""), key: str = Form(""), token: str = Form("")):
+    context = {"error": "", "done": False, "token": SETUP_TOKEN}
+    # Этот роут открыт без входа, поэтому куки его не защищают: чужая страница могла бы
+    # отправить сюда своё приглашение. Токен со страницы она прочитать не может.
+    if not secrets.compare_digest(token, SETUP_TOKEN):
+        context["error"] = "Страница устарела, откройте её заново."
+        return templates.TemplateResponse(request, "setup.html", context)
     try:
         invite.apply(blob.strip(), key.strip())
     except invite.InviteError as error:
-        return templates.TemplateResponse(request, "setup.html", {"error": str(error), "done": False})
-    return templates.TemplateResponse(request, "setup.html", {"error": "", "done": True})
+        context["error"] = str(error)
+        return templates.TemplateResponse(request, "setup.html", context)
+    context["done"] = True
+    return templates.TemplateResponse(request, "setup.html", context)
 
 
 @app.get("/invite")
@@ -364,15 +382,26 @@ async def upload_files(document_id: int, files: list[UploadFile] = File([])):
     return RedirectResponse(f"/documents/{document_id}", status_code=303)
 
 
+VIEWABLE_TYPES = ("image/", "application/pdf")
+
+
 @app.get("/files/{file_id}")
 def download_file(file_id: int):
     stored = repo.get_file(conn, file_id)
     if stored is None:
         return RedirectResponse("/", status_code=303)
+    # Тип файла задаёт тот, кто его загрузил. Показывать в браузере можно только то,
+    # что не умеет выполнять код: иначе достаточно загрузить html, чтобы получить
+    # выполнение скрипта на странице приложения у другого члена семьи.
+    viewable = stored.mime_type.startswith(VIEWABLE_TYPES)
+    safe_name = re.sub(r'[^\w .()\[\]-]', "_", stored.filename, flags=re.UNICODE)
     return Response(
         content=storage.download(stored.storage_key),
-        media_type=stored.mime_type,
-        headers={"Content-Disposition": f'inline; filename="{stored.filename}"'},
+        media_type=stored.mime_type if viewable else "application/octet-stream",
+        headers={
+            "Content-Disposition": f'{"inline" if viewable else "attachment"}; filename="{safe_name}"',
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
