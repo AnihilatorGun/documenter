@@ -1,7 +1,25 @@
 import sqlite3
 from datetime import date, datetime, timedelta
 
-from documenter.models import Document, DocumentFilter, DocumentInput, Person, StoredFile, Tag
+from documenter.models import CATALOGS, Document, DocumentFilter, DocumentInput, Entry, StoredFile
+
+# table, link table, link column for each catalog; the only place raw SQL identifiers come from user-known names
+_CATALOG_TABLES = {
+    "persons": ("persons", "document_persons", "person_id"),
+    "tags": ("tags", "document_tags", "tag_id"),
+    "languages": ("languages", "document_languages", "language_id"),
+}
+
+
+def _catalog_tables(catalog: str) -> tuple[str, str, str]:
+    try:
+        return _CATALOG_TABLES[catalog]
+    except KeyError:
+        raise ValueError(f"unknown catalog: {catalog}") from None
+
+
+def _ids_attr(catalog: str) -> str:
+    return catalog[:-1] + "_ids"  # persons -> person_ids, tags -> tag_ids, languages -> language_ids
 
 
 def _to_date_str(d: date | None) -> str | None:
@@ -46,86 +64,71 @@ def _attach_relations(conn: sqlite3.Connection, docs: list[Document]) -> None:
     if not docs:
         return
     by_id = {d.id: d for d in docs}
-    placeholders = ",".join("?" * len(docs))
     ids = list(by_id)
+    placeholders = ",".join("?" * len(ids))
+
+    # catalog name doubles as the Document attribute name (persons/tags/languages)
+    for catalog in CATALOGS:
+        table, link, col = _catalog_tables(catalog)
+        for row in conn.execute(
+            f"SELECT l.document_id AS document_id, e.id AS id, e.name AS name "
+            f"FROM {link} l JOIN {table} e ON e.id = l.{col} "
+            f"WHERE l.document_id IN ({placeholders}) ORDER BY e.name",
+            ids,
+        ):
+            getattr(by_id[row["document_id"]], catalog).append(Entry(row["id"], row["name"]))
 
     for row in conn.execute(
-        f"SELECT dp.document_id AS document_id, p.id AS id, p.name AS name "
-        f"FROM document_persons dp JOIN persons p ON p.id = dp.person_id "
-        f"WHERE dp.document_id IN ({placeholders}) ORDER BY p.name",
-        ids,
-    ):
-        by_id[row["document_id"]].persons.append(Person(row["id"], row["name"]))
-
-    for row in conn.execute(
-        f"SELECT dt.document_id AS document_id, t.id AS id, t.name AS name "
-        f"FROM document_tags dt JOIN tags t ON t.id = dt.tag_id "
-        f"WHERE dt.document_id IN ({placeholders}) ORDER BY t.name",
-        ids,
-    ):
-        by_id[row["document_id"]].tags.append(Tag(row["id"], row["name"]))
-
-    for row in conn.execute(
-        f"SELECT document_id, language FROM document_languages "
-        f"WHERE document_id IN ({placeholders}) ORDER BY language",
-        ids,
-    ):
-        by_id[row["document_id"]].languages.append(row["language"])
-
-    for row in conn.execute(
-        f"SELECT * FROM files WHERE document_id IN ({placeholders}) ORDER BY id",
-        ids,
+        f"SELECT * FROM files WHERE document_id IN ({placeholders}) ORDER BY id", ids
     ):
         by_id[row["document_id"]].files.append(_row_to_file(row))
 
 
 def _set_links(conn: sqlite3.Connection, document_id: int, data: DocumentInput) -> None:
-    conn.executemany(
-        "INSERT INTO document_persons (document_id, person_id) VALUES (?, ?)",
-        [(document_id, pid) for pid in data.person_ids],
-    )
-    conn.executemany(
-        "INSERT INTO document_tags (document_id, tag_id) VALUES (?, ?)",
-        [(document_id, tid) for tid in data.tag_ids],
-    )
-    conn.executemany(
-        "INSERT INTO document_languages (document_id, language) VALUES (?, ?)",
-        [(document_id, lang) for lang in data.languages],
-    )
+    for catalog in CATALOGS:
+        _, link, col = _catalog_tables(catalog)
+        entry_ids = getattr(data, _ids_attr(catalog))
+        conn.executemany(
+            f"INSERT INTO {link} (document_id, {col}) VALUES (?, ?)",
+            [(document_id, entry_id) for entry_id in entry_ids],
+        )
 
 
 def _clear_links(conn: sqlite3.Connection, document_id: int) -> None:
-    conn.execute("DELETE FROM document_persons WHERE document_id = ?", (document_id,))
-    conn.execute("DELETE FROM document_tags WHERE document_id = ?", (document_id,))
-    conn.execute("DELETE FROM document_languages WHERE document_id = ?", (document_id,))
+    for catalog in CATALOGS:
+        _, link, _ = _catalog_tables(catalog)
+        conn.execute(f"DELETE FROM {link} WHERE document_id = ?", (document_id,))
 
 
-def list_persons(conn: sqlite3.Connection) -> list[Person]:
-    rows = conn.execute("SELECT id, name FROM persons ORDER BY name").fetchall()
-    return [Person(row["id"], row["name"]) for row in rows]
+def list_entries(conn: sqlite3.Connection, catalog: str) -> list[Entry]:
+    table, link, col = _catalog_tables(catalog)
+    rows = conn.execute(
+        f"SELECT e.id AS id, e.name AS name, COUNT(l.document_id) AS documents "
+        f"FROM {table} e LEFT JOIN {link} l ON l.{col} = e.id "
+        f"GROUP BY e.id ORDER BY e.name"
+    ).fetchall()
+    return [Entry(row["id"], row["name"], row["documents"]) for row in rows]
 
 
-def create_person(conn: sqlite3.Connection, name: str) -> Person:
-    row = conn.execute("SELECT id, name FROM persons WHERE name = ?", (name,)).fetchone()
-    if row:
-        return Person(row["id"], row["name"])
-    cur = conn.execute("INSERT INTO persons (name) VALUES (?)", (name,))
+def create_entry(conn: sqlite3.Connection, catalog: str, name: str) -> Entry:
+    table, link, col = _catalog_tables(catalog)
+    row = conn.execute(f"SELECT id, name FROM {table} WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        cur = conn.execute(f"INSERT INTO {table} (name) VALUES (?)", (name,))
+        conn.commit()
+        return Entry(cur.lastrowid, name, 0)
+    documents = conn.execute(f"SELECT COUNT(*) FROM {link} WHERE {col} = ?", (row["id"],)).fetchone()[0]
+    return Entry(row["id"], row["name"], documents)
+
+
+def delete_entry(conn: sqlite3.Connection, catalog: str, entry_id: int) -> bool:
+    table, link, col = _catalog_tables(catalog)
+    in_use = conn.execute(f"SELECT 1 FROM {link} WHERE {col} = ? LIMIT 1", (entry_id,)).fetchone()
+    if in_use is not None:
+        return False
+    cur = conn.execute(f"DELETE FROM {table} WHERE id = ?", (entry_id,))
     conn.commit()
-    return Person(cur.lastrowid, name)
-
-
-def list_tags(conn: sqlite3.Connection) -> list[Tag]:
-    rows = conn.execute("SELECT id, name FROM tags ORDER BY name").fetchall()
-    return [Tag(row["id"], row["name"]) for row in rows]
-
-
-def create_tag(conn: sqlite3.Connection, name: str) -> Tag:
-    row = conn.execute("SELECT id, name FROM tags WHERE name = ?", (name,)).fetchone()
-    if row:
-        return Tag(row["id"], row["name"])
-    cur = conn.execute("INSERT INTO tags (name) VALUES (?)", (name,))
-    conn.commit()
-    return Tag(cur.lastrowid, name)
+    return cur.rowcount > 0
 
 
 def create_document(conn: sqlite3.Connection, data: DocumentInput, created_by: str) -> int:
@@ -189,20 +192,13 @@ def search_documents(conn: sqlite3.Connection, filt: DocumentFilter, today: date
     clauses = []
     params: list = []
 
-    if filt.person_ids:
-        placeholders = ",".join("?" * len(filt.person_ids))
-        clauses.append(f"id IN (SELECT document_id FROM document_persons WHERE person_id IN ({placeholders}))")
-        params.extend(filt.person_ids)
-
-    if filt.tag_ids:
-        placeholders = ",".join("?" * len(filt.tag_ids))
-        clauses.append(f"id IN (SELECT document_id FROM document_tags WHERE tag_id IN ({placeholders}))")
-        params.extend(filt.tag_ids)
-
-    if filt.languages:
-        placeholders = ",".join("?" * len(filt.languages))
-        clauses.append(f"id IN (SELECT document_id FROM document_languages WHERE language IN ({placeholders}))")
-        params.extend(filt.languages)
+    for catalog in CATALOGS:
+        entry_ids = getattr(filt, _ids_attr(catalog))
+        if entry_ids:
+            _, link, col = _catalog_tables(catalog)
+            placeholders = ",".join("?" * len(entry_ids))
+            clauses.append(f"id IN (SELECT document_id FROM {link} WHERE {col} IN ({placeholders}))")
+            params.extend(entry_ids)
 
     if filt.query:
         pattern = f"%{filt.query.lower()}%"

@@ -37,10 +37,10 @@
   <div class="filter-group">
     <div class="filter-label">Языки</div>
     <div class="pill-row">
-      {% for code, name in languages.items() %}
+      {% for language in languages %}
       <label class="pill">
-        <input type="checkbox" name="lang" value="{{ code }}" {% if code in filt.languages %}checked{% endif %}>
-        <span>{{ name }}</span>
+        <input type="checkbox" name="lang" value="{{ language.id }}" {% if language.id in filt.language_ids %}checked{% endif %}>
+        <span>{{ language.name }}</span>
       </label>
       {% endfor %}
     </div>
@@ -84,8 +84,8 @@
 
     {% if doc.languages %}
     <div class="badge-row">
-      {% for code in doc.languages %}
-      <span class="badge badge-lang">{{ languages.get(code, code) }}</span>
+      {% for language in doc.languages %}
+      <span class="badge badge-lang">{{ language.name }}</span>
       {% endfor %}
     </div>
     {% endif %}

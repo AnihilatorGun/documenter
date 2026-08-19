@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Справочники — Документы семьи{% endblock %}
+{% block content %}
+
+<h1>Справочники</h1>
+
+<p class="muted">Удалить можно только то, что не используется ни одним документом.
+  Новые записи добавляются автоматически при создании документа.</p>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+{% for catalog in catalogs %}
+<section class="catalog-section">
+  <h2>{{ catalog.title }}</h2>
+  {% if catalog.entries %}
+  <ul class="catalog-list">
+    {% for entry in catalog.entries %}
+    <li class="catalog-item">
+      <span class="catalog-name">{{ entry.name }}</span>
+      {% if entry.documents == 0 %}
+      <div class="catalog-actions">
+        <span class="catalog-count muted">Не используется</span>
+        <form method="post" action="/catalogs/{{ catalog.key }}/{{ entry.id }}/delete" onsubmit="return confirm('Удалить «{{ entry.name }}»?');">
+          <button type="submit" class="button button-danger">Удалить</button>
+        </form>
+      </div>
+      {% else %}
+      <span class="catalog-count muted">Используется в {{ entry.documents }} документах — удалить нельзя</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Пока пусто.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% endblock %}

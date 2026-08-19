@@ -4,7 +4,9 @@ import time
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Query, Request, UploadFile
+from dataclasses import dataclass
+
+from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,7 +16,7 @@ from documenter import db, google_oauth, invite, local_state, repo, sync
 from documenter.auth import RequireLoginMiddleware, current_user
 from documenter.config import settings
 from documenter.drive import DriveStorage
-from documenter.models import LANGUAGES, DocumentFilter, DocumentInput
+from documenter.models import CATALOGS, DocumentFilter, DocumentInput
 from documenter.storage import LocalStorage
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
@@ -105,33 +107,37 @@ async def _store_uploads(document_id: int, uploads: list[UploadFile]) -> None:
         repo.add_file(conn, document_id, upload.filename, mime, len(data), key)
 
 
-def _document_input(
-    title: str,
-    person_ids: list[int],
-    tag_ids: list[int],
-    languages: list[str],
-    new_person: str,
-    new_tag: str,
-    doc_number: str,
-    issuer: str,
-    doc_date: str,
-    expires_at: str,
-    notes: str,
-) -> DocumentInput:
-    if new_person.strip():
-        person_ids = person_ids + [repo.create_person(conn, new_person.strip()).id]
-    if new_tag.strip():
-        tag_ids = tag_ids + [repo.create_tag(conn, new_tag.strip()).id]
+@dataclass
+class DocumentForm:
+    title: str = Form(...)
+    person: list[int] = Form([])
+    tag: list[int] = Form([])
+    lang: list[int] = Form([])
+    new_person: str = Form("")
+    new_tag: str = Form("")
+    new_lang: str = Form("")
+    doc_number: str = Form("")
+    issuer: str = Form("")
+    doc_date: str = Form("")
+    expires_at: str = Form("")
+    notes: str = Form("")
+
+
+def _with_typed_in(catalog: str, ids: list[int], name: str) -> list[int]:
+    return ids if not name.strip() else ids + [repo.create_entry(conn, catalog, name.strip()).id]
+
+
+def _document_input(form: DocumentForm) -> DocumentInput:
     return DocumentInput(
-        title=title.strip(),
-        person_ids=person_ids,
-        tag_ids=tag_ids,
-        languages=languages,
-        doc_number=doc_number.strip(),
-        issuer=issuer.strip(),
-        doc_date=_parse_date(doc_date),
-        expires_at=_parse_date(expires_at),
-        notes=notes.strip(),
+        title=form.title.strip(),
+        person_ids=_with_typed_in("persons", form.person, form.new_person),
+        tag_ids=_with_typed_in("tags", form.tag, form.new_tag),
+        language_ids=_with_typed_in("languages", form.lang, form.new_lang),
+        doc_number=form.doc_number.strip(),
+        issuer=form.issuer.strip(),
+        doc_date=_parse_date(form.doc_date),
+        expires_at=_parse_date(form.expires_at),
+        notes=form.notes.strip(),
     )
 
 
@@ -247,13 +253,13 @@ def index(
     q: str = "",
     person: list[int] = Query([]),
     tag: list[int] = Query([]),
-    lang: list[str] = Query([]),
+    lang: list[int] = Query([]),
     expiring: str = "",
 ):
     filt = DocumentFilter(
         person_ids=person,
         tag_ids=tag,
-        languages=lang,
+        language_ids=lang,
         query=q,
         expiring_within_days=int(expiring) if expiring else None,
     )
@@ -263,13 +269,41 @@ def index(
         {
             "user": current_user(request),
             "docs": repo.search_documents(conn, filt, date.today()),
-            "persons": repo.list_persons(conn),
-            "tags": repo.list_tags(conn),
-            "languages": LANGUAGES,
+            "persons": repo.list_entries(conn, "persons"),
+            "tags": repo.list_entries(conn, "tags"),
+            "languages": repo.list_entries(conn, "languages"),
             "filt": filt,
             "today": date.today(),
         },
     )
+
+
+CATALOG_TITLES = {"persons": "Личности", "tags": "Теги", "languages": "Языки"}
+
+
+@app.get("/catalogs")
+def catalogs_page(request: Request, error: str = ""):
+    return templates.TemplateResponse(
+        request,
+        "catalogs.html",
+        {
+            "user": current_user(request),
+            "error": error,
+            "catalogs": [
+                {"key": key, "title": CATALOG_TITLES[key], "entries": repo.list_entries(conn, key)}
+                for key in CATALOGS
+            ],
+        },
+    )
+
+
+@app.post("/catalogs/{catalog}/{entry_id}/delete")
+def delete_catalog_entry(catalog: str, entry_id: int):
+    if catalog not in CATALOGS:
+        return RedirectResponse("/catalogs", status_code=303)
+    if repo.delete_entry(conn, catalog, entry_id):
+        return RedirectResponse("/catalogs", status_code=303)
+    return RedirectResponse("/catalogs?error=Запись используется документами", status_code=303)
 
 
 @app.get("/documents/new")
@@ -280,9 +314,9 @@ def new_document_form(request: Request):
         {
             "user": current_user(request),
             "doc": None,
-            "persons": repo.list_persons(conn),
-            "tags": repo.list_tags(conn),
-            "languages": LANGUAGES,
+            "persons": repo.list_entries(conn, "persons"),
+            "tags": repo.list_entries(conn, "tags"),
+            "languages": repo.list_entries(conn, "languages"),
             "error": None,
         },
     )
@@ -291,23 +325,10 @@ def new_document_form(request: Request):
 @app.post("/documents")
 async def create_document(
     request: Request,
-    title: str = Form(...),
-    person: list[int] = Form([]),
-    tag: list[int] = Form([]),
-    lang: list[str] = Form([]),
-    new_person: str = Form(""),
-    new_tag: str = Form(""),
-    doc_number: str = Form(""),
-    issuer: str = Form(""),
-    doc_date: str = Form(""),
-    expires_at: str = Form(""),
-    notes: str = Form(""),
+    form: DocumentForm = Depends(),
     files: list[UploadFile] = File([]),
 ):
-    data = _document_input(
-        title, person, tag, lang, new_person, new_tag, doc_number, issuer, doc_date, expires_at, notes
-    )
-    document_id = repo.create_document(conn, data, created_by=current_user(request)["email"])
+    document_id = repo.create_document(conn, _document_input(form), created_by=current_user(request)["email"])
     await _store_uploads(document_id, files)
     return RedirectResponse(f"/documents/{document_id}", status_code=303)
 
@@ -320,7 +341,7 @@ def document_page(request: Request, document_id: int):
     return templates.TemplateResponse(
         request,
         "document.html",
-        {"user": current_user(request), "doc": doc, "languages": LANGUAGES, "today": date.today()},
+        {"user": current_user(request), "doc": doc, "today": date.today()},
     )
 
 
@@ -335,33 +356,17 @@ def edit_document_form(request: Request, document_id: int):
         {
             "user": current_user(request),
             "doc": doc,
-            "persons": repo.list_persons(conn),
-            "tags": repo.list_tags(conn),
-            "languages": LANGUAGES,
+            "persons": repo.list_entries(conn, "persons"),
+            "tags": repo.list_entries(conn, "tags"),
+            "languages": repo.list_entries(conn, "languages"),
             "error": None,
         },
     )
 
 
 @app.post("/documents/{document_id}")
-def update_document(
-    document_id: int,
-    title: str = Form(...),
-    person: list[int] = Form([]),
-    tag: list[int] = Form([]),
-    lang: list[str] = Form([]),
-    new_person: str = Form(""),
-    new_tag: str = Form(""),
-    doc_number: str = Form(""),
-    issuer: str = Form(""),
-    doc_date: str = Form(""),
-    expires_at: str = Form(""),
-    notes: str = Form(""),
-):
-    data = _document_input(
-        title, person, tag, lang, new_person, new_tag, doc_number, issuer, doc_date, expires_at, notes
-    )
-    repo.update_document(conn, document_id, data)
+def update_document(document_id: int, form: DocumentForm = Depends()):
+    repo.update_document(conn, document_id, _document_input(form))
     return RedirectResponse(f"/documents/{document_id}", status_code=303)
 
 

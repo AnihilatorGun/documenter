@@ -57,15 +57,20 @@
   <div class="filter-group">
     <div class="filter-label">Языки документа</div>
     <div class="pill-row">
-      {% for code, name in languages.items() %}
+      {% for language in languages %}
       <label class="pill">
-        <input type="checkbox" name="lang" value="{{ code }}" {% if doc and code in doc.languages %}checked{% endif %}>
-        <span>{{ name }}</span>
+        <input type="checkbox" name="lang" value="{{ language.id }}" {% if doc and language.id in (doc.languages | map(attribute="id") | list) %}checked{% endif %}>
+        <span>{{ language.name }}</span>
       </label>
       {% endfor %}
     </div>
   </div>
   {% endif %}
+
+  <label class="field">
+    <span class="field-label">Новый язык</span>
+    <input type="text" name="new_lang" placeholder="Например, немецкий">
+  </label>
 
   <label class="field">
     <span class="field-label">Номер документа</span>

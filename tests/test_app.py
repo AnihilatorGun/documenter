@@ -42,7 +42,7 @@ def test_document_lifecycle(logged_in):
             "title": "Карта побыту",
             "new_person": "Первый",
             "new_tag": "легализация",
-            "lang": ["pl", "ru"],
+            "new_lang": "польский",
             "doc_number": "ABC123",
             "expires_at": "2030-01-01",
             "notes": "лежит в синей папке",
@@ -57,6 +57,7 @@ def test_document_lifecycle(logged_in):
     assert page.status_code == 200
     assert "Карта побыту" in page.text
     assert "Первый" in page.text
+    assert "польский" in page.text
 
     assert logged_in.get(f"{document_url}/edit").status_code == 200
     assert logged_in.get("/?q=синей").text.count("Карта побыту") == 1
@@ -114,3 +115,27 @@ def test_invite_creation_explains_itself_when_drive_is_not_connected(logged_in):
     response = logged_in.post("/invite")
     assert response.status_code == 200
     assert "error" in response.text
+
+
+def test_catalogs_page_needs_a_login(client):
+    assert client.get("/catalogs", follow_redirects=False).status_code == 303
+
+
+def test_unused_entry_can_be_removed(logged_in):
+    from documenter.app import conn
+    from documenter import repo
+
+    entry = repo.create_entry(conn, "tags", "лишний тег")
+    assert logged_in.post(f"/catalogs/tags/{entry.id}/delete", follow_redirects=False).status_code == 303
+    assert "лишний тег" not in [e.name for e in repo.list_entries(conn, "tags")]
+
+
+def test_entry_in_use_survives_a_delete_attempt(logged_in):
+    from documenter.app import conn
+    from documenter import repo
+
+    logged_in.post("/documents", data={"title": "Договор", "new_tag": "нужный тег"})
+    entry = next(e for e in repo.list_entries(conn, "tags") if e.name == "нужный тег")
+    response = logged_in.post(f"/catalogs/tags/{entry.id}/delete", follow_redirects=False)
+    assert "error" in response.headers["location"]
+    assert "нужный тег" in [e.name for e in repo.list_entries(conn, "tags")]

@@ -8,6 +8,11 @@ CREATE TABLE IF NOT EXISTS tags (
     name TEXT NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS languages (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE IF NOT EXISTS documents (
     id         INTEGER PRIMARY KEY,
     title      TEXT NOT NULL,
@@ -34,8 +39,8 @@ CREATE TABLE IF NOT EXISTS document_tags (
 
 CREATE TABLE IF NOT EXISTS document_languages (
     document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-    language    TEXT NOT NULL,
-    PRIMARY KEY (document_id, language)
+    language_id INTEGER NOT NULL REFERENCES languages(id),
+    PRIMARY KEY (document_id, language_id)
 );
 
 CREATE TABLE IF NOT EXISTS files (

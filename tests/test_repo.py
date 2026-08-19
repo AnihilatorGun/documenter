@@ -4,7 +4,7 @@ import pytest
 
 from documenter import repo
 from documenter.db import connect, init_db
-from documenter.models import DocumentFilter, DocumentInput
+from documenter.models import CATALOGS, DocumentFilter, DocumentInput
 
 
 @pytest.fixture
@@ -21,36 +21,100 @@ def make_document(conn, **overrides):
     return repo.create_document(conn, data, created_by="alice@example.com")
 
 
-def test_create_person_idempotent(conn):
-    p1 = repo.create_person(conn, "Alice")
-    p2 = repo.create_person(conn, "Alice")
-    assert p1.id == p2.id
-    assert [p.name for p in repo.list_persons(conn)] == ["Alice"]
+def make_entry(conn, catalog, name):
+    return repo.create_entry(conn, catalog, name).id
 
 
-def test_create_tag_idempotent(conn):
-    t1 = repo.create_tag(conn, "custom")
-    t2 = repo.create_tag(conn, "custom")
-    assert t1.id == t2.id
-    names = [t.name for t in repo.list_tags(conn)]
-    assert names.count("custom") == 1
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_create_entry_idempotent(conn, catalog):
+    e1 = repo.create_entry(conn, catalog, "Alice")
+    e2 = repo.create_entry(conn, catalog, "Alice")
+    assert e1.id == e2.id
+    assert [e.name for e in repo.list_entries(conn, catalog)].count("Alice") == 1
+
+
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_list_entries_sorted_alphabetically(conn, catalog):
+    repo.create_entry(conn, catalog, "Zeta")
+    repo.create_entry(conn, catalog, "Alpha")
+    names = [e.name for e in repo.list_entries(conn, catalog) if e.name in ("Zeta", "Alpha")]
+    assert names == ["Alpha", "Zeta"]
 
 
 def test_list_tags_includes_defaults(conn):
-    names = {t.name for t in repo.list_tags(conn)}
+    names = {t.name for t in repo.list_entries(conn, "tags")}
     assert "виза" in names
 
 
+def test_list_languages_includes_defaults(conn):
+    names = {t.name for t in repo.list_entries(conn, "languages")}
+    assert "русский" in names
+
+
+def test_unknown_catalog_raises(conn):
+    with pytest.raises(ValueError):
+        repo.list_entries(conn, "bogus")
+    with pytest.raises(ValueError):
+        repo.create_entry(conn, "bogus", "x")
+    with pytest.raises(ValueError):
+        repo.delete_entry(conn, "bogus", 1)
+
+
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_list_entries_counts_documents(conn, catalog):
+    used = repo.create_entry(conn, catalog, "used")
+    unused = repo.create_entry(conn, catalog, "unused")
+    ids_attr = catalog[:-1] + "_ids"
+    make_document(conn, **{ids_attr: [used.id]})
+    make_document(conn, **{ids_attr: [used.id]})
+
+    entries = {e.name: e for e in repo.list_entries(conn, catalog)}
+    assert entries["used"].documents == 2
+    assert entries["unused"].documents == 0
+
+
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_create_entry_existing_reports_document_count(conn, catalog):
+    entry = repo.create_entry(conn, catalog, "used")
+    ids_attr = catalog[:-1] + "_ids"
+    make_document(conn, **{ids_attr: [entry.id]})
+
+    again = repo.create_entry(conn, catalog, "used")
+    assert again.documents == 1
+
+
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_delete_entry_unused_succeeds(conn, catalog):
+    entry = repo.create_entry(conn, catalog, "throwaway")
+    assert repo.delete_entry(conn, catalog, entry.id) is True
+    assert entry.name not in [e.name for e in repo.list_entries(conn, catalog)]
+
+
+@pytest.mark.parametrize("catalog", CATALOGS)
+def test_delete_entry_used_fails_and_keeps_data(conn, catalog):
+    entry = repo.create_entry(conn, catalog, "in-use")
+    ids_attr = catalog[:-1] + "_ids"
+    doc_id = make_document(conn, **{ids_attr: [entry.id]})
+
+    assert repo.delete_entry(conn, catalog, entry.id) is False
+
+    assert entry.name in [e.name for e in repo.list_entries(conn, catalog)]
+    doc = repo.get_document(conn, doc_id)
+    assert entry.name in [e.name for e in getattr(doc, catalog)]
+
+
 def test_create_and_get_document_with_relations(conn):
-    alice = repo.create_person(conn, "Alice")
-    bob = repo.create_person(conn, "Bob")
-    tag = repo.create_tag(conn, "виза")
+    alice = repo.create_entry(conn, "persons", "Alice")
+    bob = repo.create_entry(conn, "persons", "Bob")
+    tag = repo.create_entry(conn, "tags", "виза")
+    ru = repo.create_entry(conn, "languages", "русский")
+    en = repo.create_entry(conn, "languages", "английский")
 
     data = DocumentInput(
         title="Passport",
         person_ids=[alice.id, bob.id],
         tag_ids=[tag.id],
-        languages=["ru", "en"],
+        language_ids=[ru.id, en.id],
         doc_number="AB-1",
         issuer="MVD",
         doc_date=date(2020, 1, 1),
@@ -70,7 +134,7 @@ def test_create_and_get_document_with_relations(conn):
     assert doc.created_by == "alice@example.com"
     assert {p.name for p in doc.persons} == {"Alice", "Bob"}
     assert [t.name for t in doc.tags] == ["виза"]
-    assert doc.languages == ["en", "ru"]
+    assert [lang.name for lang in doc.languages] == ["английский", "русский"]
     assert doc.files == []
 
 
@@ -87,20 +151,22 @@ def test_create_document_with_no_dates(conn):
 
 
 def test_update_document_replaces_links(conn):
-    alice = repo.create_person(conn, "Alice")
-    bob = repo.create_person(conn, "Bob")
-    tag1 = repo.create_tag(conn, "виза")
-    tag2 = repo.create_tag(conn, "медицина")
+    alice = repo.create_entry(conn, "persons", "Alice")
+    bob = repo.create_entry(conn, "persons", "Bob")
+    tag1 = repo.create_entry(conn, "tags", "виза")
+    tag2 = repo.create_entry(conn, "tags", "медицина")
+    ru = repo.create_entry(conn, "languages", "русский")
+    en = repo.create_entry(conn, "languages", "английский")
 
     doc_id = make_document(
-        conn, person_ids=[alice.id], tag_ids=[tag1.id], languages=["ru"], title="Old title"
+        conn, person_ids=[alice.id], tag_ids=[tag1.id], language_ids=[ru.id], title="Old title"
     )
 
     updated = DocumentInput(
         title="New title",
         person_ids=[bob.id],
         tag_ids=[tag2.id],
-        languages=["en"],
+        language_ids=[en.id],
         doc_number="new-number",
     )
     repo.update_document(conn, doc_id, updated)
@@ -110,7 +176,7 @@ def test_update_document_replaces_links(conn):
     assert doc.doc_number == "new-number"
     assert [p.name for p in doc.persons] == ["Bob"]
     assert [t.name for t in doc.tags] == ["медицина"]
-    assert doc.languages == ["en"]
+    assert [lang.name for lang in doc.languages] == ["английский"]
 
 
 def test_delete_document_returns_storage_keys_and_cascades(conn):
@@ -159,9 +225,9 @@ def test_get_document_files_sorted_by_id(conn):
 
 
 def test_search_filter_by_person_is_or_within_group(conn):
-    alice = repo.create_person(conn, "Alice")
-    bob = repo.create_person(conn, "Bob")
-    carol = repo.create_person(conn, "Carol")
+    alice = repo.create_entry(conn, "persons", "Alice")
+    bob = repo.create_entry(conn, "persons", "Bob")
+    carol = repo.create_entry(conn, "persons", "Carol")
 
     doc_alice = make_document(conn, person_ids=[alice.id], title="doc-alice")
     doc_bob = make_document(conn, person_ids=[bob.id], title="doc-bob")
@@ -174,8 +240,8 @@ def test_search_filter_by_person_is_or_within_group(conn):
 
 
 def test_search_filter_by_tag(conn):
-    tag1 = repo.create_tag(conn, "виза")
-    tag2 = repo.create_tag(conn, "медицина")
+    tag1 = repo.create_entry(conn, "tags", "виза")
+    tag2 = repo.create_entry(conn, "tags", "медицина")
     doc1 = make_document(conn, tag_ids=[tag1.id], title="doc1")
     doc2 = make_document(conn, tag_ids=[tag2.id], title="doc2")
 
@@ -185,10 +251,12 @@ def test_search_filter_by_tag(conn):
 
 
 def test_search_filter_by_language(conn):
-    doc_ru = make_document(conn, languages=["ru"], title="ru-doc")
-    doc_en = make_document(conn, languages=["en"], title="en-doc")
+    ru = repo.create_entry(conn, "languages", "русский")
+    en = repo.create_entry(conn, "languages", "английский")
+    doc_ru = make_document(conn, language_ids=[ru.id], title="ru-doc")
+    doc_en = make_document(conn, language_ids=[en.id], title="en-doc")
 
-    results = repo.search_documents(conn, DocumentFilter(languages=["en"]), date.today())
+    results = repo.search_documents(conn, DocumentFilter(language_ids=[en.id]), date.today())
     assert [d.id for d in results] == [doc_en]
     assert doc_ru not in [d.id for d in results]
 
@@ -211,9 +279,9 @@ def test_search_empty_query_does_not_filter(conn):
 
 
 def test_search_filter_combination_is_and_between_groups(conn):
-    alice = repo.create_person(conn, "Alice")
-    bob = repo.create_person(conn, "Bob")
-    tag = repo.create_tag(conn, "виза")
+    alice = repo.create_entry(conn, "persons", "Alice")
+    bob = repo.create_entry(conn, "persons", "Bob")
+    tag = repo.create_entry(conn, "tags", "виза")
 
     doc_match = make_document(conn, person_ids=[alice.id], tag_ids=[tag.id], title="match")
     doc_wrong_person = make_document(conn, person_ids=[bob.id], tag_ids=[tag.id], title="wrong-person")
@@ -264,7 +332,7 @@ def test_search_default_sort_is_created_at_desc(conn):
 
 
 def test_search_no_filters_returns_all_with_relations(conn):
-    person = repo.create_person(conn, "Alice")
+    person = repo.create_entry(conn, "persons", "Alice")
     doc_id = make_document(conn, person_ids=[person.id])
     results = repo.search_documents(conn, DocumentFilter(), date.today())
     assert len(results) == 1
