@@ -1,0 +1,2 @@
+# cmd.exe требует переводов строк Windows
+*.bat text eol=crlf
