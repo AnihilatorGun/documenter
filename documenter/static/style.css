@@ -4,9 +4,6 @@
   --ok-bg: #eef0f3; --ok-text: #4b5563;
   --soon-bg: #fff1e0; --soon-text: #b45309;
   --expired-bg: #fde2e1; --expired-text: #b91c1c;
-  --entry-bg: hsl(var(--hue, 220) 55% 93%);
-  --entry-text: hsl(var(--hue, 220) 45% 30%);
-  --entry-border: hsl(var(--hue, 220) 40% 82%);
 }
 
 * { box-sizing: border-box; }
@@ -43,7 +40,7 @@ textarea { min-height: 90px; padding-top: 10px; }
 .filter-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; min-height: 40px; border: 1px solid var(--entry-border); border-radius: 999px; background: var(--entry-bg); color: var(--entry-text); font-size: 0.9rem; cursor: pointer; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; min-height: 40px; border: 1px solid hsl(var(--hue, 220), 45%, 80%); border-radius: 999px; background: hsl(var(--hue, 220), 60%, 95%); color: hsl(var(--hue, 220), 55%, 27%); font-size: 0.9rem; cursor: pointer; }
 .pill input { accent-color: var(--primary); width: 18px; height: 18px; }
 
 .doc-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -56,7 +53,8 @@ textarea { min-height: 90px; padding-top: 10px; }
 
 .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.78rem;
-  background: var(--entry-bg); color: var(--entry-text); border: 1px solid var(--entry-border); }
+  background: hsl(var(--hue, 220), 60%, 92%); color: hsl(var(--hue, 220), 55%, 27%);
+  border: 1px solid hsl(var(--hue, 220), 45%, 78%); }
 
 .expiry { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
 .expiry.ok { background: var(--ok-bg); color: var(--ok-text); }
