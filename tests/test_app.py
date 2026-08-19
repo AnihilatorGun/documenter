@@ -40,7 +40,7 @@ def test_document_lifecycle(logged_in):
         "/documents",
         data={
             "title": "Карта побыту",
-            "new_person": "Никита",
+            "new_person": "Первый",
             "new_tag": "легализация",
             "lang": ["pl", "ru"],
             "doc_number": "ABC123",
@@ -56,7 +56,7 @@ def test_document_lifecycle(logged_in):
     page = logged_in.get(document_url)
     assert page.status_code == 200
     assert "Карта побыту" in page.text
-    assert "Никита" in page.text
+    assert "Первый" in page.text
 
     assert logged_in.get(f"{document_url}/edit").status_code == 200
     assert logged_in.get("/?q=синей").text.count("Карта побыту") == 1

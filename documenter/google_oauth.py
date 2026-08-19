@@ -15,8 +15,7 @@ class GoogleUser:
     email: str
     name: str
     refresh_token: str | None
-    # Google lets the user untick individual permissions, so what was asked for
-    # and what was granted are not the same thing.
+    # The user can untick permissions, so this may be less than SCOPES.
     granted_scopes: list[str] = field(default_factory=list)
 
 
@@ -27,8 +26,7 @@ def build_auth_url(client_id: str, redirect_uri: str, state: str) -> str:
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "access_type": "offline",
-        # prompt=consent forces Google to reissue a refresh_token even for a user
-        # who already granted access before; without it a repeat login omits it.
+        # Without prompt=consent a repeat login comes back with no refresh token.
         "prompt": "consent",
         "include_granted_scopes": "true",
         "state": state,

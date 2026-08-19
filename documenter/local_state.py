@@ -3,8 +3,7 @@ from pathlib import Path
 
 from documenter.config import settings
 
-# Everything the machine needs BEFORE the database is available, so it cannot live inside it:
-# the Drive credential is what lets us download the database in the first place.
+# The Drive credential must be readable before the index exists, so it cannot live inside it.
 PATH = Path(settings.db_path).with_name("local_state.json")
 
 

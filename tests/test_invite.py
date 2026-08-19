@@ -14,7 +14,7 @@ def _set_owner_settings(monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "client-id")
     monkeypatch.setattr(settings, "google_client_secret", "client-secret")
     monkeypatch.setattr(settings, "owner_email", "owner@example.com")
-    monkeypatch.setattr(settings, "allowed_emails", ["wife@example.com", "mom@example.com"])
+    monkeypatch.setattr(settings, "allowed_emails", ["second@example.com", "third@example.com"])
     monkeypatch.setattr(settings, "drive_folder_name", "Documenter")
 
 
@@ -34,7 +34,7 @@ def test_create_then_apply_round_trip(tmp_path, monkeypatch):
     assert "GOOGLE_CLIENT_ID=client-id" in env_text
     assert "GOOGLE_CLIENT_SECRET=client-secret" in env_text
     assert "OWNER_EMAIL=owner@example.com" in env_text
-    assert "ALLOWED_EMAILS=wife@example.com,mom@example.com" in env_text
+    assert "ALLOWED_EMAILS=second@example.com,third@example.com" in env_text
     assert "DRIVE_FOLDER_NAME=Documenter" in env_text
     assert "STORAGE=drive" in env_text
 

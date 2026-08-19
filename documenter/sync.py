@@ -10,8 +10,7 @@ INDEX_MIME = "application/x-sqlite3"
 
 
 def _snapshot(conn: sqlite3.Connection) -> bytes:
-    # sqlite3.backup() copies a consistent state even mid-write; reading the .db file
-    # directly can capture half of a transaction.
+    # Reading the .db file directly can capture half of a transaction.
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "snapshot.db"
         destination = sqlite3.connect(path)
@@ -33,8 +32,7 @@ def pull(storage, db_path: str) -> str:
         local_state.update(sync_ready=True, index_key=key, index_version=storage.version(key))
         return ""
     except Exception as error:
-        # Uploading over an index we failed to read could erase someone else's work,
-        # so any failure along the way disables pushing for this run.
+        # Pushing over an index we failed to read would erase someone else's work.
         local_state.update(sync_ready=False)
         print(f"sync.pull: {error}", file=sys.stderr)
         return "Не удалось связаться с Google Диском. Работаем с локальной копией, изменения не уедут."
@@ -80,7 +78,7 @@ def enable_after_login(storage) -> str:
 
 
 def refresh(conn: sqlite3.Connection, storage) -> str:
-    """Pick up edits made from another computer. Cheap when nothing changed: one metadata call."""
+    """Pick up edits made from another computer."""
     state = local_state.load()
     key = state.get("index_key")
     if not state.get("sync_ready") or key is None:
@@ -94,8 +92,7 @@ def refresh(conn: sqlite3.Connection, storage) -> str:
             path = Path(tmp) / "incoming.db"
             path.write_bytes(data)
             incoming = sqlite3.connect(path)
-            # Copying into the live connection instead of swapping the file keeps every
-            # already-open cursor valid.
+            # Copying into the live connection keeps already-open cursors valid.
             incoming.backup(conn)
             incoming.close()
         local_state.update(index_version=remote_version)

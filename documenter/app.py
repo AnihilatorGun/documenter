@@ -26,7 +26,7 @@ _access_token = {"value": "", "expires": 0.0}
 
 
 def _drive_access_token() -> str:
-    # Google access tokens live an hour; refreshing every 50 minutes keeps it simple and safe.
+    # Google access tokens last an hour; refreshing early avoids tracking their expiry.
     if _access_token["expires"] < time.monotonic():
         refresh_token = local_state.load().get("drive_refresh_token")
         if not refresh_token:
@@ -44,8 +44,7 @@ storage = (
     else LocalStorage(settings.local_files_dir)
 )
 
-# The index in Drive is the real one; the file on this machine is a working copy of it.
-# One message at a time is enough for an app used by one person at one computer.
+# One message at a time: this app serves one person at one computer.
 notice = {"text": ""}
 if settings.storage == "drive" and local_state.load().get("drive_refresh_token"):
     notice["text"] = sync.pull(storage, settings.db_path)
@@ -54,8 +53,7 @@ conn = db.connect(settings.db_path)
 db.init_db(conn)
 
 if not settings.session_secret:
-    # Значение по умолчанию в открытом коде позволило бы кому угодно подделать сессию,
-    # поэтому недостающий секрет генерируется и остаётся на этом компьютере.
+    # A default secret would be public knowledge and let anyone forge a session.
     settings.session_secret = local_state.load().get("session_secret") or secrets.token_urlsafe(32)
     local_state.update(session_secret=settings.session_secret)
 
@@ -76,8 +74,7 @@ _last_index_check = {"at": 0.0}
 def _time_to_check_drive(request: Request) -> bool:
     if settings.storage != "drive" or request.url.path.startswith(SYNC_FREE_PREFIXES):
         return False
-    # Asking Drive costs a quarter of a second, which is too much on every click —
-    # but a save must never land on top of a stale index, so writes always check.
+    # Asking Drive costs a quarter of a second; only writes can afford it every time.
     if request.method != "POST" and time.monotonic() - _last_index_check["at"] < INDEX_CHECK_INTERVAL:
         return False
     _last_index_check["at"] = time.monotonic()
@@ -155,8 +152,7 @@ def setup_page(request: Request):
 @app.post("/setup")
 def apply_invite(request: Request, blob: str = Form(""), key: str = Form(""), token: str = Form("")):
     context = {"error": "", "done": False, "token": SETUP_TOKEN}
-    # Этот роут открыт без входа, поэтому куки его не защищают: чужая страница могла бы
-    # отправить сюда своё приглашение. Токен со страницы она прочитать не может.
+    # No session here, so SameSite does not cover this form; a foreign page cannot read the token.
     if not secrets.compare_digest(token, SETUP_TOKEN):
         context["error"] = "Страница устарела, откройте её заново."
         return templates.TemplateResponse(request, "setup.html", context)
@@ -390,9 +386,7 @@ def download_file(file_id: int):
     stored = repo.get_file(conn, file_id)
     if stored is None:
         return RedirectResponse("/", status_code=303)
-    # Тип файла задаёт тот, кто его загрузил. Показывать в браузере можно только то,
-    # что не умеет выполнять код: иначе достаточно загрузить html, чтобы получить
-    # выполнение скрипта на странице приложения у другого члена семьи.
+    # The uploader chooses the type, so anything that could run script is sent as a download.
     viewable = stored.mime_type.startswith(VIEWABLE_TYPES)
     safe_name = re.sub(r'[^\w .()\[\]-]', "_", stored.filename, flags=re.UNICODE)
     return Response(

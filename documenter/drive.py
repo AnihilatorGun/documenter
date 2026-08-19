@@ -27,8 +27,7 @@ class DriveStorage:
         if self._folder_id is not None:
             return self._folder_id
 
-        # Scope is drive.file, so this app can only ever see folders it created itself;
-        # a same-named folder made outside the app is invisible to this query.
+        # With drive.file this query only ever sees folders the app created itself.
         query = (
             f"name='{self._folder_name}' and mimeType='{FOLDER_MIME_TYPE}' and trashed=false"
         )
