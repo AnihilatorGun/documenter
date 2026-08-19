@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{% if doc %}Редактировать документ{% else %}Новый документ{% endif %} — Документы семьи{% endblock %}
+{% block content %}
+
+<h1>{% if doc %}Редактировать документ{% else %}Новый документ{% endif %}</h1>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" action="{{ '/documents/' ~ doc.id if doc else '/documents' }}" class="doc-form">
+
+  <label class="field">
+    <span class="field-label">Название</span>
+    <input type="text" name="title" value="{{ doc.title if doc else '' }}" required>
+  </label>
+
+  {% if persons %}
+  <div class="filter-group">
+    <div class="filter-label">Личности</div>
+    <div class="pill-row">
+      {% for person in persons %}
+      <label class="pill">
+        <input type="checkbox" name="person" value="{{ person.id }}" {% if doc and person.id in (doc.persons | map(attribute="id") | list) %}checked{% endif %}>
+        <span>{{ person.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <label class="field">
+    <span class="field-label">Новая личность</span>
+    <input type="text" name="new_person" placeholder="Например, Анна">
+  </label>
+
+  {% if tags %}
+  <div class="filter-group">
+    <div class="filter-label">Теги</div>
+    <div class="pill-row">
+      {% for tag in tags %}
+      <label class="pill">
+        <input type="checkbox" name="tag" value="{{ tag.id }}" {% if doc and tag.id in (doc.tags | map(attribute="id") | list) %}checked{% endif %}>
+        <span>{{ tag.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <label class="field">
+    <span class="field-label">Новый тег</span>
+    <input type="text" name="new_tag" placeholder="Например, страховка">
+  </label>
+
+  {% if languages %}
+  <div class="filter-group">
+    <div class="filter-label">Языки документа</div>
+    <div class="pill-row">
+      {% for code, name in languages.items() %}
+      <label class="pill">
+        <input type="checkbox" name="lang" value="{{ code }}" {% if doc and code in doc.languages %}checked{% endif %}>
+        <span>{{ name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <label class="field">
+    <span class="field-label">Номер документа</span>
+    <input type="text" name="doc_number" value="{{ doc.doc_number if doc else '' }}">
+  </label>
+
+  <label class="field">
+    <span class="field-label">Кем выдан</span>
+    <input type="text" name="issuer" value="{{ doc.issuer if doc else '' }}">
+  </label>
+
+  <label class="field">
+    <span class="field-label">Дата выдачи</span>
+    <input type="date" name="doc_date" value="{{ doc.doc_date if doc and doc.doc_date else '' }}">
+  </label>
+
+  <label class="field">
+    <span class="field-label">Срок действия</span>
+    <input type="date" name="expires_at" value="{{ doc.expires_at if doc and doc.expires_at else '' }}">
+  </label>
+
+  <label class="field">
+    <span class="field-label">Заметки</span>
+    <textarea name="notes" rows="4">{{ doc.notes if doc else '' }}</textarea>
+  </label>
+
+  {% if not doc %}
+  <label class="field">
+    <span class="field-label">Файлы</span>
+    <input type="file" name="files" multiple accept="image/*,application/pdf">
+  </label>
+  {% endif %}
+
+  <div class="filter-actions">
+    <button type="submit" class="button button-primary">Сохранить</button>
+  </div>
+
+</form>
+
+{% endblock %}

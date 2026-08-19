@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets and machine-local state, never share through git:
+# .env holds the Google client secret, data/local_state.json the Drive credential.
+.env
+data/
+*.db

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Документы — Документы семьи{% endblock %}
+{% block content %}
+
+<form method="get" action="/" class="filters">
+  <input type="search" name="q" value="{{ filt.query }}" placeholder="Поиск по названию и заметкам" class="search-input">
+
+  {% if persons %}
+  <div class="filter-group">
+    <div class="filter-label">Личности</div>
+    <div class="pill-row">
+      {% for person in persons %}
+      <label class="pill">
+        <input type="checkbox" name="person" value="{{ person.id }}" {% if person.id in filt.person_ids %}checked{% endif %}>
+        <span>{{ person.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tags %}
+  <div class="filter-group">
+    <div class="filter-label">Теги</div>
+    <div class="pill-row">
+      {% for tag in tags %}
+      <label class="pill">
+        <input type="checkbox" name="tag" value="{{ tag.id }}" {% if tag.id in filt.tag_ids %}checked{% endif %}>
+        <span>{{ tag.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if languages %}
+  <div class="filter-group">
+    <div class="filter-label">Языки</div>
+    <div class="pill-row">
+      {% for code, name in languages.items() %}
+      <label class="pill">
+        <input type="checkbox" name="lang" value="{{ code }}" {% if code in filt.languages %}checked{% endif %}>
+        <span>{{ name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="filter-group">
+    <div class="filter-label">Срок действия</div>
+    <select name="expiring" class="select-input">
+      <option value="" {% if not filt.expiring_within_days %}selected{% endif %}>Все</option>
+      <option value="30" {% if filt.expiring_within_days == 30 %}selected{% endif %}>Истекает за 30 дней</option>
+      <option value="60" {% if filt.expiring_within_days == 60 %}selected{% endif %}>Истекает за 60 дней</option>
+      <option value="90" {% if filt.expiring_within_days == 90 %}selected{% endif %}>Истекает за 90 дней</option>
+      <option value="365" {% if filt.expiring_within_days == 365 %}selected{% endif %}>Истекает за год</option>
+    </select>
+  </div>
+
+  <div class="filter-actions">
+    <button type="submit" class="button button-primary">Показать</button>
+    <a href="/" class="button button-secondary">Сбросить</a>
+  </div>
+</form>
+
+{% if docs %}
+<div class="doc-grid">
+  {% for doc in docs %}
+  <a class="doc-card" href="/documents/{{ doc.id }}">
+    <div class="doc-card-title">{{ doc.title }}</div>
+
+    {% if doc.persons %}
+    <div class="doc-card-line">{{ doc.persons | map(attribute="name") | join(", ") }}</div>
+    {% endif %}
+
+    {% if doc.tags %}
+    <div class="badge-row">
+      {% for tag in doc.tags %}
+      <span class="badge badge-tag">{{ tag.name }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if doc.languages %}
+    <div class="badge-row">
+      {% for code in doc.languages %}
+      <span class="badge badge-lang">{{ languages.get(code, code) }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="doc-card-line muted">
+      {% if doc.files %}
+        Файлов: {{ doc.files | length }}
+      {% else %}
+        Файлов нет
+      {% endif %}
+    </div>
+
+    {% set left = doc.days_until_expiry(today) %}
+    {% if left is not none %}
+      {% if left < 0 %}
+      <div class="expiry expired">Просрочен {{ -left }} дн. назад</div>
+      {% elif left <= 60 %}
+      <div class="expiry soon">Истекает через {{ left }} дн.</div>
+      {% else %}
+      <div class="expiry ok">Действует до {{ doc.expires_at.strftime('%d.%m.%Y') }}</div>
+      {% endif %}
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">Ничего не найдено.</p>
+{% endif %}
+
+{% endblock %}

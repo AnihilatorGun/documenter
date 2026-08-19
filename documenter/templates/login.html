@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Документы семьи</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="container login-container">
+  <div class="login-box">
+    <h1>Документы семьи</h1>
+    <p class="muted">Семейный трекер документов: визы, медицина, ИП и всё остальное в одном месте.</p>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    {% if google_configured %}
+    <a class="button button-primary" href="/auth/start">Войти через Google</a>
+    {% else %}
+    <a class="button button-primary" href="/auth/local">Войти локально</a>
+    <p class="muted">Google пока не настроен, см. README.</p>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>

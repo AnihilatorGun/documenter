@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — Документы семьи{% endblock %}
+{% block content %}
+
+<div class="doc-header">
+  <h1>{{ doc.title }}</h1>
+  <div class="doc-header-actions">
+    <a class="button button-secondary" href="/documents/{{ doc.id }}/edit">Редактировать</a>
+    <form method="post" action="/documents/{{ doc.id }}/delete" onsubmit="return confirm('Удалить документ «{{ doc.title }}» вместе со всеми файлами?');">
+      <button type="submit" class="button button-danger">Удалить документ</button>
+    </form>
+  </div>
+</div>
+
+<div class="doc-detail">
+  {% if doc.persons %}
+  <div class="detail-row">
+    <div class="detail-label">Личности</div>
+    <div class="detail-value">{{ doc.persons | map(attribute="name") | join(", ") }}</div>
+  </div>
+  {% endif %}
+
+  {% if doc.tags %}
+  <div class="detail-row">
+    <div class="detail-label">Теги</div>
+    <div class="detail-value">
+      <div class="badge-row">
+        {% for tag in doc.tags %}
+        <span class="badge badge-tag">{{ tag.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if doc.languages %}
+  <div class="detail-row">
+    <div class="detail-label">Языки</div>
+    <div class="detail-value">
+      <div class="badge-row">
+        {% for code in doc.languages %}
+        <span class="badge badge-lang">{{ languages.get(code, code) }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if doc.doc_number %}
+  <div class="detail-row">
+    <div class="detail-label">Номер</div>
+    <div class="detail-value">{{ doc.doc_number }}</div>
+  </div>
+  {% endif %}
+
+  {% if doc.issuer %}
+  <div class="detail-row">
+    <div class="detail-label">Кем выдан</div>
+    <div class="detail-value">{{ doc.issuer }}</div>
+  </div>
+  {% endif %}
+
+  {% if doc.doc_date %}
+  <div class="detail-row">
+    <div class="detail-label">Дата выдачи</div>
+    <div class="detail-value">{{ doc.doc_date.strftime('%d.%m.%Y') }}</div>
+  </div>
+  {% endif %}
+
+  {% if doc.expires_at %}
+  {% set left = doc.days_until_expiry(today) %}
+  <div class="detail-row">
+    <div class="detail-label">Срок действия</div>
+    <div class="detail-value">
+      {% if left is not none and left < 0 %}
+      <span class="expiry expired">Просрочен {{ -left }} дн. назад</span>
+      {% elif left is not none and left <= 60 %}
+      <span class="expiry soon">Истекает через {{ left }} дн.</span>
+      {% else %}
+      <span class="expiry ok">Действует до {{ doc.expires_at.strftime('%d.%m.%Y') }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if doc.notes %}
+  <div class="detail-row">
+    <div class="detail-label">Заметки</div>
+    <div class="detail-value notes">{{ doc.notes }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<h2>Файлы</h2>
+
+{% if doc.files %}
+<ul class="file-list">
+  {% for f in doc.files %}
+  <li class="file-item">
+    <div class="file-info">
+      <span class="file-name">{{ f.filename }}</span>
+      <span class="file-size muted">
+        {% if f.size >= 1048576 %}{{ (f.size / 1048576) | round(1) }} МБ
+        {% else %}{{ (f.size / 1024) | round(1) }} КБ
+        {% endif %}
+      </span>
+    </div>
+    <div class="file-actions">
+      <a class="button button-secondary" href="/files/{{ f.id }}">Скачать</a>
+      <form method="post" action="/files/{{ f.id }}/delete" onsubmit="return confirm('Удалить файл «{{ f.filename }}»?');">
+        <button type="submit" class="button button-danger">Удалить</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Файлов нет.</p>
+{% endif %}
+
+<form method="post" action="/documents/{{ doc.id }}/files" enctype="multipart/form-data" class="upload-form">
+  <input type="file" name="files" multiple accept="image/*,application/pdf">
+  <button type="submit" class="button button-primary">Загрузить</button>
+</form>
+
+{% endblock %}
