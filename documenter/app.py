@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from documenter import db, google_oauth, local_state, repo, sync
+from documenter import db, google_oauth, invite, local_state, repo, sync
 from documenter.auth import RequireLoginMiddleware, current_user
 from documenter.config import settings
 from documenter.drive import DriveStorage
@@ -57,9 +57,10 @@ app.add_middleware(RequireLoginMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates.env.globals["notice"] = lambda: notice["text"]
+templates.env.globals["owner_email"] = settings.owner_email
 
 
-SYNC_FREE_PREFIXES = ("/static", "/files", "/auth", "/login")
+SYNC_FREE_PREFIXES = ("/static", "/files", "/auth", "/login", "/setup", "/invite")
 INDEX_CHECK_INTERVAL = 15.0
 _last_index_check = {"at": 0.0}
 
@@ -134,6 +135,40 @@ def login_page(request: Request, error: str = ""):
     return templates.TemplateResponse(
         request, "login.html", {"error": error, "google_configured": bool(settings.google_client_id)}
     )
+
+
+@app.get("/setup")
+def setup_page(request: Request):
+    return templates.TemplateResponse(request, "setup.html", {"error": "", "done": False})
+
+
+@app.post("/setup")
+def apply_invite(request: Request, blob: str = Form(""), key: str = Form("")):
+    try:
+        invite.apply(blob.strip(), key.strip())
+    except invite.InviteError as error:
+        return templates.TemplateResponse(request, "setup.html", {"error": str(error), "done": False})
+    return templates.TemplateResponse(request, "setup.html", {"error": "", "done": True})
+
+
+@app.get("/invite")
+def invite_page(request: Request):
+    return templates.TemplateResponse(
+        request, "invite.html", {"user": current_user(request), "blob": "", "key": "", "error": ""}
+    )
+
+
+@app.post("/invite")
+def create_invite(request: Request):
+    context = {"user": current_user(request), "blob": "", "key": "", "error": ""}
+    if context["user"]["email"].lower() != settings.owner_email:
+        context["error"] = "Приглашение может создать только владелец документов."
+    else:
+        try:
+            context["blob"], context["key"] = invite.create()
+        except invite.InviteError as error:
+            context["error"] = str(error)
+    return templates.TemplateResponse(request, "invite.html", context)
 
 
 @app.get("/auth/local")

@@ -75,3 +75,29 @@ def test_local_door_works_while_google_is_not_configured(client):
     assert response.status_code == 303
     assert response.headers["location"] == "/"
     assert client.get("/").status_code == 200
+
+
+def test_setup_page_is_reachable_without_logging_in(client):
+    assert client.get("/setup").status_code == 200
+
+
+def test_setup_rejects_nonsense_with_a_message(client):
+    response = client.post("/setup", data={"blob": "не приглашение", "key": "не ключ"})
+    assert response.status_code == 200
+    assert "error" in response.text
+
+
+def test_invite_page_needs_a_login(client):
+    response = client.get("/invite", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_owner_sees_the_invite_page(logged_in):
+    assert logged_in.get("/invite").status_code == 200
+
+
+def test_invite_creation_explains_itself_when_drive_is_not_connected(logged_in):
+    response = logged_in.post("/invite")
+    assert response.status_code == 200
+    assert "error" in response.text

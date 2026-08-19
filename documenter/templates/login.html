@@ -17,8 +17,9 @@
     {% if google_configured %}
     <a class="button button-primary" href="/auth/start">Войти через Google</a>
     {% else %}
-    <a class="button button-primary" href="/auth/local">Войти локально</a>
-    <p class="muted">Google пока не настроен, см. README.</p>
+    <a class="button button-primary" href="/setup">У меня есть приглашение</a>
+    <p class="muted">Если вас подключают к документам семьи — вам прислали приглашение и ключ.</p>
+    <a class="button button-secondary" href="/auth/local">Просто посмотреть приложение</a>
     {% endif %}
   </div>
 </main>

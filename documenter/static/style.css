@@ -93,3 +93,18 @@ textarea { min-height: 90px; padding-top: 10px; }
   border: 1px solid #f0c188;
   color: #7a4a00;
 }
+
+.warning {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fdecea;
+  border: 1px solid #e5a29b;
+  color: #7a1c12;
+}
+
+textarea[readonly] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}

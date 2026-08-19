@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Приглашение — Документы семьи{% endblock %}
+{% block content %}
+
+<h1>Приглашение на второй компьютер</h1>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+{% if blob %}
+<div class="warning">
+  <strong>Отправьте приглашение и ключ разными способами.</strong>
+  Например приглашение в мессенджере, а ключ голосом или из рук в руки. Если оба
+  попадут в одну переписку, шифрование не защитит ни от чего.
+</div>
+
+<label>Приглашение
+  <textarea rows="6" readonly onclick="this.select()">{{ blob }}</textarea>
+</label>
+
+<label>Ключ
+  <textarea rows="2" readonly onclick="this.select()">{{ key }}</textarea>
+</label>
+
+<p class="muted">На втором компьютере нужно установить приложение, запустить его
+  и на первом же экране выбрать «У меня есть приглашение».</p>
+{% else %}
+<p class="muted">Приглашение открывает другому члену семьи доступ к документам:
+  к тем же файлам в Google Диске и к тому же списку тегов и сроков.</p>
+<form method="post" action="/invite">
+  <button type="submit" class="button button-primary">Создать приглашение</button>
+</form>
+{% endif %}
+
+{% endblock %}
