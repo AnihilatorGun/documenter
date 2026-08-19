@@ -18,7 +18,7 @@
   <ul class="catalog-list">
     {% for entry in catalog.entries %}
     <li class="catalog-item">
-      <span class="catalog-name">{{ entry.name }}</span>
+      <span class="catalog-name badge" style="--hue: {{ entry.hue }}">{{ entry.name }}</span>
       {% if entry.documents == 0 %}
       <div class="catalog-actions">
         <span class="catalog-count muted">Не используется</span>

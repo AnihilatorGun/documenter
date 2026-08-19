@@ -20,7 +20,7 @@
     <div class="filter-label">Личности</div>
     <div class="pill-row">
       {% for person in persons %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ person.hue }}">
         <input type="checkbox" name="person" value="{{ person.id }}" {% if doc and person.id in (doc.persons | map(attribute="id") | list) %}checked{% endif %}>
         <span>{{ person.name }}</span>
       </label>
@@ -39,7 +39,7 @@
     <div class="filter-label">Теги</div>
     <div class="pill-row">
       {% for tag in tags %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ tag.hue }}">
         <input type="checkbox" name="tag" value="{{ tag.id }}" {% if doc and tag.id in (doc.tags | map(attribute="id") | list) %}checked{% endif %}>
         <span>{{ tag.name }}</span>
       </label>
@@ -58,7 +58,7 @@
     <div class="filter-label">Языки документа</div>
     <div class="pill-row">
       {% for language in languages %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ language.hue }}">
         <input type="checkbox" name="lang" value="{{ language.id }}" {% if doc and language.id in (doc.languages | map(attribute="id") | list) %}checked{% endif %}>
         <span>{{ language.name }}</span>
       </label>

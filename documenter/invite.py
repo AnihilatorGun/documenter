@@ -61,8 +61,7 @@ def apply(blob: str, key: str, root: Path = PROJECT_ROOT) -> None:
         "DRIVE_FOLDER_NAME={drive_folder_name}\n"
         "\n"
         "DB_PATH=data/documenter.db\n"
-        "LOCAL_FILES_DIR=data/files\n"
-        "BASE_URL=http://localhost:8000\n".format(
+        "LOCAL_FILES_DIR=data/files\n".format(
             session_secret=secrets.token_urlsafe(32),
             **payload,
         )

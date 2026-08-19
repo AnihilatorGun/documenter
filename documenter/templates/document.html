@@ -16,7 +16,13 @@
   {% if doc.persons %}
   <div class="detail-row">
     <div class="detail-label">Личности</div>
-    <div class="detail-value">{{ doc.persons | map(attribute="name") | join(", ") }}</div>
+    <div class="detail-value">
+      <div class="badge-row">
+        {% for person in doc.persons %}
+        <span class="badge" style="--hue: {{ person.hue }}">{{ person.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
   </div>
   {% endif %}
 
@@ -26,7 +32,7 @@
     <div class="detail-value">
       <div class="badge-row">
         {% for tag in doc.tags %}
-        <span class="badge badge-tag">{{ tag.name }}</span>
+        <span class="badge" style="--hue: {{ tag.hue }}">{{ tag.name }}</span>
         {% endfor %}
       </div>
     </div>
@@ -39,7 +45,7 @@
     <div class="detail-value">
       <div class="badge-row">
         {% for language in doc.languages %}
-        <span class="badge badge-lang">{{ language.name }}</span>
+        <span class="badge" style="--hue: {{ language.hue }}">{{ language.name }}</span>
         {% endfor %}
       </div>
     </div>

@@ -14,11 +14,7 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
-# Открываем браузер отдельно, с задержкой — чтобы сервер успел подняться
-( sleep 2 && open "http://localhost:8000" ) &
-
 echo "Запускаем Documenter..."
-echo "Приложение работает. Чтобы остановить — закройте это окно или нажмите Ctrl+C."
 echo ""
 
-uv run uvicorn documenter.app:app --port 8000
+uv run python -m documenter.run

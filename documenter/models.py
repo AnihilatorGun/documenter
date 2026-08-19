@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
@@ -14,6 +15,11 @@ class Entry:
     id: int
     name: str
     documents: int = 0
+
+    @property
+    def hue(self) -> int:
+        """Colour follows the name, so the same tag looks the same on every computer."""
+        return int(hashlib.sha1(self.name.encode()).hexdigest(), 16) % 360
 
 
 @dataclass

@@ -21,7 +21,7 @@ class Settings:
     drive_folder_name: str = field(default_factory=lambda: os.getenv("DRIVE_FOLDER_NAME", "Documenter"))
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "data/documenter.db"))
     local_files_dir: str = field(default_factory=lambda: os.getenv("LOCAL_FILES_DIR", "data/files"))
-    base_url: str = field(default_factory=lambda: os.getenv("BASE_URL", "http://localhost:8000"))
+    base_url: str = "http://localhost:8000"  # replaced at startup by the port actually taken
 
     def may_log_in(self, email: str) -> bool:
         email = email.lower()

@@ -10,7 +10,7 @@
     <div class="filter-label">Личности</div>
     <div class="pill-row">
       {% for person in persons %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ person.hue }}">
         <input type="checkbox" name="person" value="{{ person.id }}" {% if person.id in filt.person_ids %}checked{% endif %}>
         <span>{{ person.name }}</span>
       </label>
@@ -24,7 +24,7 @@
     <div class="filter-label">Теги</div>
     <div class="pill-row">
       {% for tag in tags %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ tag.hue }}">
         <input type="checkbox" name="tag" value="{{ tag.id }}" {% if tag.id in filt.tag_ids %}checked{% endif %}>
         <span>{{ tag.name }}</span>
       </label>
@@ -38,7 +38,7 @@
     <div class="filter-label">Языки</div>
     <div class="pill-row">
       {% for language in languages %}
-      <label class="pill">
+      <label class="pill" style="--hue: {{ language.hue }}">
         <input type="checkbox" name="lang" value="{{ language.id }}" {% if language.id in filt.language_ids %}checked{% endif %}>
         <span>{{ language.name }}</span>
       </label>
@@ -71,13 +71,17 @@
     <div class="doc-card-title">{{ doc.title }}</div>
 
     {% if doc.persons %}
-    <div class="doc-card-line">{{ doc.persons | map(attribute="name") | join(", ") }}</div>
+    <div class="badge-row">
+      {% for person in doc.persons %}
+      <span class="badge" style="--hue: {{ person.hue }}">{{ person.name }}</span>
+      {% endfor %}
+    </div>
     {% endif %}
 
     {% if doc.tags %}
     <div class="badge-row">
       {% for tag in doc.tags %}
-      <span class="badge badge-tag">{{ tag.name }}</span>
+      <span class="badge" style="--hue: {{ tag.hue }}">{{ tag.name }}</span>
       {% endfor %}
     </div>
     {% endif %}
@@ -85,7 +89,7 @@
     {% if doc.languages %}
     <div class="badge-row">
       {% for language in doc.languages %}
-      <span class="badge badge-lang">{{ language.name }}</span>
+      <span class="badge" style="--hue: {{ language.hue }}">{{ language.name }}</span>
       {% endfor %}
     </div>
     {% endif %}
