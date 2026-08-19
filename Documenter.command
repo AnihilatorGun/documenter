@@ -7,6 +7,13 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 export PATH="$HOME/.local/bin:$PATH"
 
+if ! command -v uv >/dev/null 2>&1; then
+    echo "Программа для запуска не найдена." >&2
+    echo "Сначала дважды кликните файл Install.command в этой папке." >&2
+    read -n 1 -s -r -p "Нажмите любую клавишу, чтобы закрыть окно..." || true
+    exit 1
+fi
+
 # Открываем браузер отдельно, с задержкой — чтобы сервер успел подняться
 ( sleep 2 && open "http://localhost:8000" ) &
 
